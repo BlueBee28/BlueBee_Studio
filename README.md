@@ -8,7 +8,7 @@ Kalkulator layout percetakan untuk menghitung cover buku, potong kertas, isi buk
 
 ```
 BlueBee_Studio/
-├── index.html          # HTML utama (shell + markup)
+├── index.html      # HTML utama (shell + markup)
 ├── style.css       # Seluruh styling (light & dark theme)
 ├── app.js          # Seluruh logika aplikasi
 └── README.md
