@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/29370683/README.md)
 # BlueBee Studio
 
 Alat bantu profesional untuk perhitungan cetak buku — meliputi **Cover Layout Calculator**, **Paper Cut Imposition**, **Perhitungan ISI**, dan **Referensi Kertas**, lengkap dengan preview visual, ekspor PNG/PDF, dark mode, dan aksesibilitas penuh.
