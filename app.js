@@ -31,7 +31,7 @@ const PAPER_ISI_OPTIONS = Object.entries(PAPER_ISI_MAP).map(([k,v])=>({value:k,l
 const JILID_OPTIONS = [{value:'soft',label:'Soft Cover'},{value:'hard',label:'Hard Cover'},{value:'spiral',label:'Spiral Kawat'}];
 
 const PRINT_PAPER_OPTIONS = [{value:'A4',label:'A4'},{value:'A3',label:'A3'},{value:'A3+',label:'A3+'},{value:'LongCarton',label:'Long Carton'},{value:'Custom',label:'Custom'}];
-const PRINT_PAPER_MAP = {A4:{w:297,h:210},A3:{w:420,h:297},'A3+':{w:480,h:320},LongCarton:{w:640,h:320}};
+const PRINT_PAPER_MAP = {A4:{w:297,h:210},A3:{w:420,h:297},'A3+':{w:480,h:320},LongCarton:{w:640,h:320}}; // NOTE: LongCarton stored as landscape w x h; PAPER_REF_SIZES uses portrait w x h
 
 const BLEED_OPTIONS = [{value:'0',label:'Tanpa Bleed'},{value:'2',label:'2mm'},{value:'3',label:'3mm'},{value:'5',label:'5mm'}];
 
@@ -54,9 +54,6 @@ const MAX_DIMENSION = 2000;
 // New Tab Data Constants
 // ============================================================
 // Laminating options & pricing (per sisi — kalikan ×2 untuk cover depan+belakang)
-const LAMINATING_OPTIONS = [{value:'none',label:'Tanpa Laminating'},{value:'glossy',label:'Glossy'},{value:'matte',label:'Matte'},{value:'softtouch',label:'Soft Touch'}];
-const LAMINATING_PRICING = {none:0,glossy:15000,matte:18000,softtouch:25000}; // per m² per sisi (×2 untuk double-sided)
-const SIGNATURE_OPTIONS = [{value:'4',label:'4 halaman (2 lembar)'},{value:'8',label:'8 halaman (4 lembar)'},{value:'16',label:'16 halaman (8 lembar)'},{value:'32',label:'32 halaman (16 lembar)'}];
 
 // Paper Reference Database
 const PAPER_REF_SIZES = [
@@ -79,6 +76,11 @@ const PAPER_REF_SIZES = [
 // Diturunkan dari PAPER_ISI_MAP (tidak duplikat)
 const PAPER_REF_WEIGHTS = Object.values(PAPER_ISI_MAP).map(v=>({name:v.name,gsm:v.gsm,thickness:v.thickness,type:v.type}));
 
+// [NEW] Global options untuk inline dropdown di Perbandingan Ukuran (Referensi Kertas).
+// Perlu di-expose ke global scope karena dipanggil dari inline onclick.
+// Format: [{value, label}, ...] sesuai kontrak openDropdownMenuAt.
+const __PAPER_REF_OPTIONS__ = PAPER_REF_SIZES.map(p => ({value: p.name, label: p.name + ' (' + p.w + '×' + p.h + 'mm)'}));
+
 const ICONS = {
   book: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   portrait: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>',
@@ -91,6 +93,8 @@ const ICONS = {
   margin: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1" stroke-dasharray="3,2"/></svg>',
   pcs: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="9" height="9" rx="1.5"/><rect x="13" y="2" width="9" height="9" rx="1.5"/><rect x="2" y="13" width="9" height="9" rx="1.5"/><rect x="13" y="13" width="9" height="9" rx="1.5"/></svg>',
   chacaRel: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 5V3"/><path d="M16 5V3"/><line x1="2" y1="10" x2="22" y2="10" stroke-dasharray="3,2"/></svg>',
+  twoSides: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/><line x1="12" y1="2" x2="12" y2="22" stroke-dasharray="2,2"/></svg>',
+  jilid: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><circle cx="9" cy="11" r="0.5" fill="currentColor"/><circle cx="9" cy="14" r="0.5" fill="currentColor"/><circle cx="9" cy="17" r="0.5" fill="currentColor"/></svg>',
 
 };
 
@@ -182,6 +186,7 @@ function copyTextFallback(text, silent) {
     ta.style.left = '-9999px';
     document.body.appendChild(ta);
     ta.select();
+    // Deliberate fallback: navigator.clipboard.writeText (above) may fail in non-HTTPS / older browsers
     document.execCommand('copy');
     document.body.removeChild(ta);
     if (!silent) showToast('Tersalin!', 'success');
@@ -199,7 +204,7 @@ let isDark = false;
 const coverState = {
   bookSize:'A4', position:'Portrait', customW:210, customH:297,
   paperIsi:'hvs75', lembaran:200, jilid:'spiral',
-  printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', bleed:'0', margin:'0',
+  printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', paperPositionAuto:true, bleed:'0', margin:'0',
   coverIsi:'carton260'
 };
 let coverZoom = 0;
@@ -207,7 +212,7 @@ let coverSplitView = 'front'; // [Bug #9] Track which half is shown in split mod
 
 const paperCutState = {
   customW:148, customH:210, position:'Portrait', chacaRel:false, jumlahPcs:200,
-  printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape',
+  printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', paperPositionAuto:true,
   bleed:'0', margin:'0'
 };
 let paperCutZoom = 0;
@@ -217,7 +222,12 @@ let paperCutExportInfo = []; // info lines for export
 // New tab states
 const kalkulatorIsiState = {
   jumlahHalaman:20, bookSize:'A4', position:'Portrait', customW:210, customH:297,
-  signatureSize:'4', paperIsi:'hvs75'
+  duaSisi:true,
+  printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', paperPositionAuto:true,
+  bleed:'0', margin:'0',
+  // [NEW] Untuk kartu Tebal Punggung & Spiral Number di mode ISI
+  paperIsi:'hvs75',     // default HVS 75gsm
+  jilid:'spiral'        // 'soft' | 'hard' | 'spiral' — default Spiral Kawat
 };
 let referensiSearchFilter = '';
 let referensiCompareA = 'A4';
@@ -272,7 +282,7 @@ function switchTab(tab) {
   const tabInfo = {
     'cover-layout': {title:'Cover Layout', subtitle:'Hitung layout cetak cover buku', icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="18" rx="1.5"/><line x1="11" y1="3" x2="13" y2="3"/><line x1="11" y1="21" x2="13" y2="21"/><rect x="15" y="3" width="7" height="18" rx="1.5"/></svg>'},
     'paper-cut': {title:'Paper Cut', subtitle:'Hitung layout potong & imposisi halaman', icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="9" height="9" rx="1.5"/><rect x="13" y="2" width="9" height="9" rx="1.5"/><rect x="2" y="13" width="9" height="9" rx="1.5"/><rect x="13" y="13" width="9" height="9" rx="1.5"/></svg>'},
-    'kalkulator-isi': {title:'Kalkulator Isi', subtitle:'Hitung jumlah tanda & lembar cetak isi buku', icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'},
+    'kalkulator-isi': {title:'Perhitungan ISI', subtitle:'Hitung jumlah tanda & lembar cetak isi buku', icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'},
     'referensi-kertas': {title:'Referensi Kertas', subtitle:'Database ukuran & berat kertas', icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>'}
   };
   const info = tabInfo[tab] || tabInfo['cover-layout'];
@@ -280,6 +290,22 @@ function switchTab(tab) {
   document.getElementById('headerSubtitle').textContent = info.subtitle;
   document.title = info.title + ' — BlueBee Studio';
   document.getElementById('headerIcon').innerHTML = info.icon;
+
+  // [Bug fix] Hide sidebar toggle on tabs without a left panel (e.g. Referensi)
+  const sidebarBtn = document.getElementById('sidebarToggleBtn');
+  if (sidebarBtn) {
+    if (tab === 'referensi-kertas') {
+      sidebarBtn.style.display = 'none';
+      // Close sidebar if currently open
+      const panels = document.querySelectorAll('.studio-left-panel');
+      panels.forEach(p => p.classList.remove('sidebar-open'));
+      const overlay = document.querySelector('.studio-sidebar-overlay');
+      if (overlay) overlay.remove();
+      sidebarBtn.classList.remove('sidebar-open-handle');
+    } else {
+      sidebarBtn.style.display = '';
+    }
+  }
 
   renderAll();
 }
@@ -376,7 +402,104 @@ function updateThemeIcon() {
 // ============================================================
 // Dropdown helper [A11y #1, #2]
 // ============================================================
-function closeAllDropdowns() { document.querySelectorAll('.studio-dropdown-menu').forEach(m => m.remove()); document.querySelectorAll('.studio-dropdown-arrow.open').forEach(a => a.classList.remove('open')); }
+
+// [NEW] Reusable helper: open a dropdown menu anchored to any trigger element.
+// Pakai logic yang sama dengan createDropdown (termasuk flash-fix di pojok kiri atas),
+// tapi tidak perlu attach ke container — cocok untuk button inline di template literal.
+//
+// options: [{value, label}, ...]
+// currentValue: nilai yang sedang aktif (untuk highlight 'active')
+// onChange: callback(value) — dipanggil saat user pilih item
+// ariaLabel: optional, untuk a11y
+function openDropdownMenuAt(trigger, options, currentValue, onChange, ariaLabel) {
+  // Toggle close jika menu yang terbuka milik trigger ini
+  const existingMenu = document.querySelector('.studio-dropdown-menu');
+  if (existingMenu && existingMenu._trigger === trigger) {
+    trigger.setAttribute('aria-expanded', 'false');
+    existingMenu.classList.add('closing');
+    const target = existingMenu;
+    setTimeout(() => { if (target.parentNode) target.remove(); }, 180);
+    return;
+  }
+  closeAllDropdowns();
+  const menu = document.createElement('div');
+  menu.className = 'studio-dropdown-menu';
+  menu._trigger = trigger;
+  menu.setAttribute('role', 'listbox');
+  if (ariaLabel) menu.setAttribute('aria-label', ariaLabel);
+  options.forEach((opt, i) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'studio-dropdown-item' + (opt.value === currentValue ? ' active' : '');
+    item.textContent = opt.label;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', opt.value === currentValue ? 'true' : 'false');
+    item.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      onChange(opt.value);
+      menu.remove();
+      trigger.setAttribute('aria-expanded', 'false');
+      renderAll();
+    });
+    menu.appendChild(item);
+  });
+  // [Flash fix] Sama dengan createDropdown — disable animation, posisi off-screen,
+  // write final coords, reflow, baru enable animation.
+  document.body.appendChild(menu);
+  const triggerRect = trigger.getBoundingClientRect();
+  const triggerWidth = triggerRect.width;
+  const viewportH = window.innerHeight;
+  const viewportW = window.innerWidth;
+  menu.style.animation = 'none';
+  menu.style.visibility = 'hidden';
+  menu.style.left = '-9999px';
+  menu.style.top = '0';
+  menu.style.width = triggerWidth + 'px';
+  menu.style.minWidth = '';
+  const menuH = menu.offsetHeight;
+  let top = triggerRect.bottom + 6;
+  if (top + menuH > viewportH - 10) top = triggerRect.top - menuH - 6;
+  let left = triggerRect.left;
+  if (left + triggerWidth > viewportW - 10) left = viewportW - triggerWidth - 10;
+  menu.style.top = top + 'px';
+  menu.style.left = Math.max(10, left) + 'px';
+  menu.style.visibility = '';
+  void menu.offsetWidth;
+  menu.style.animation = '';
+  trigger.setAttribute('aria-expanded', 'true');
+  // Focus first item
+  const firstItem = menu.querySelector('.studio-dropdown-item');
+  if (firstItem) firstItem.focus();
+  return menu;
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.studio-dropdown-menu').forEach(m => {
+    // Reset aria-expanded on the trigger that opened this menu
+    if (m._trigger) {
+      m._trigger.setAttribute('aria-expanded', 'false');
+      m._trigger.setAttribute('aria-activedescendant', '');
+      const arrow = m._trigger.querySelector('.studio-dropdown-arrow');
+      if (arrow) arrow.classList.remove('open');
+    }
+    // Premium close animation: fade-out then remove
+    if (!m.classList.contains('closing')) {
+      m.classList.add('closing');
+      const target = m;
+      setTimeout(() => { if (target.parentNode) target.remove(); }, 180);
+    }
+  });
+  // Fallback: ensure any orphan arrows are cleared
+  document.querySelectorAll('.studio-dropdown-arrow.open').forEach(a => a.classList.remove('open'));
+}
+window.addEventListener('resize', closeAllDropdowns);
+
+// [A11y] Keyboard accessibility for result cards - delegated
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('studio-result-card')) {
+    e.preventDefault(); e.target.click();
+  }
+});
 document.addEventListener('click', closeAllDropdowns);
 
 // [A11y #2] Keyboard handler for dropdown menus
@@ -414,7 +537,7 @@ function createDropdown(containerId, label, options, value, onChange, iconSvg) {
   const group = document.createElement('div');
   group.className = 'studio-form-group';
 
-  const triggerId = 'dd_' + Math.random().toString(36).substr(2,8);
+  const triggerId = 'dd_' + Math.random().toString(36).slice(2,10);
   const lbl = document.createElement('label');
   lbl.className = 'studio-form-label';
   lbl.htmlFor = triggerId;
@@ -438,16 +561,24 @@ function createDropdown(containerId, label, options, value, onChange, iconSvg) {
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
-    const existingMenu = wrapper.querySelector('.studio-dropdown-menu');
-    if (existingMenu) {
-      existingMenu.remove();
-      trigger.querySelector('.studio-dropdown-arrow').classList.remove('open');
+    const existingMenu = document.querySelector('.studio-dropdown-menu');
+    // [Bug fix] Only toggle-close if the open menu belongs to THIS trigger.
+    // Otherwise, close all and open this one (previously: clicking a different
+    // dropdown required two clicks).
+    if (existingMenu && existingMenu._trigger === trigger) {
+      // Premium close: animate then remove
       trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('aria-activedescendant', '');
+      trigger.querySelector('.studio-dropdown-arrow').classList.remove('open');
+      existingMenu.classList.add('closing');
+      const target = existingMenu;
+      setTimeout(() => { if (target.parentNode) target.remove(); }, 180);
       return;
     }
     closeAllDropdowns();
     const menu = document.createElement('div');
     menu.className = 'studio-dropdown-menu';
+    menu._trigger = trigger; // track owner for toggle logic
     // [A11y #1] ARIA on menu
     menu.setAttribute('role', 'listbox');
     menu.setAttribute('aria-label', label);
@@ -471,7 +602,59 @@ function createDropdown(containerId, label, options, value, onChange, iconSvg) {
       });
       menu.appendChild(item);
     });
-    wrapper.appendChild(menu);
+    // Append to body to avoid clipping by scrollable parents
+    document.body.appendChild(menu);
+    const triggerRect = trigger.getBoundingClientRect();
+    const triggerWidth = triggerRect.width;
+    const viewportH = window.innerHeight;
+    const viewportW = window.innerWidth;
+    // Measure menu height after appending (width must be set first so the
+    // height reflects the wrapped layout, not the unbounded shrink-to-fit).
+    //
+    // [BUG FIX] Prevent flash at top-left corner:
+    // The menu has `animation: dropdown-in` defined in CSS, which starts
+    // running the moment the element is appended to the DOM. During the
+    // measurement phase we set `left:0; top:0` and toggle `visibility`, but
+    // the animation still progresses and the element briefly paints at the
+    // top-left of the viewport before its final position is applied.
+    //
+    // Fix: disable animation during measurement, then re-enable it AFTER
+    // the final coordinates are written. Also position the element off-screen
+    // (left:-9999px) while measuring so no paint occurs in the visible area.
+    menu.style.animation = 'none';
+    menu.style.visibility = 'hidden';
+    menu.style.left = '-9999px';
+    menu.style.top = '0';
+    // Set the menu width to match the trigger width exactly. Previously the
+    // menu used `width: auto` (shrink-to-fit) with `min-width: triggerWidth`,
+    // but because the items have `width: 100%` the shrink-to-fit resolved
+    // against the containing block (the viewport for fixed elements), making
+    // the menu span almost the entire viewport. Pinning width to the trigger
+    // keeps the menu aligned with the sidebar; long labels are truncated with
+    // ellipsis via the CSS on `.studio-dropdown-item`.
+    menu.style.width = triggerWidth + 'px';
+    menu.style.minWidth = '';
+    const menuH = menu.offsetHeight;
+    // Position below trigger; flip above if no room
+    let top = triggerRect.bottom + 6;
+    if (top + menuH > viewportH - 10) {
+      top = triggerRect.top - menuH - 6;
+    }
+    let left = triggerRect.left;
+    if (left + triggerWidth > viewportW - 10) {
+      left = viewportW - triggerWidth - 10;
+    }
+    // [BUG FIX] Write final coordinates FIRST, then un-hide and re-enable
+    // animation in a single reflow. This guarantees the element never paints
+    // at the placeholder position.
+    menu.style.top = top + 'px';
+    menu.style.left = Math.max(10, left) + 'px';
+    menu.style.visibility = '';
+    // Force a reflow so the browser commits the new position before the
+    // animation is re-enabled; otherwise some engines batch the style change
+    // and still run the animation from the off-screen position.
+    void menu.offsetWidth;
+    menu.style.animation = '';
     trigger.querySelector('.studio-dropdown-arrow').classList.add('open');
     trigger.setAttribute('aria-expanded', 'true');
     // Focus first item & update aria-activedescendant
@@ -502,7 +685,7 @@ function createNumberInput(containerId, label, value, onChange, min=0, iconSvg, 
   const group = document.createElement('div');
   group.className = 'studio-form-group';
 
-  const inputId = 'num_' + Math.random().toString(36).substr(2,8);
+  const inputId = 'num_' + Math.random().toString(36).slice(2,10);
   const lbl = document.createElement('label');
   lbl.className = 'studio-form-label';
   lbl.htmlFor = inputId;
@@ -634,6 +817,8 @@ function createNumberInput(containerId, label, value, onChange, min=0, iconSvg, 
   group.appendChild(spinner);
   group.appendChild(errorDiv);
   container.appendChild(group);
+  // [Fix] Validate initial value (e.g. corrupted localStorage)
+  applyValue();
 }
 
 // [Bug #8] Dimension input validation
@@ -686,7 +871,7 @@ function createDimensionInput(containerId, label, w, h, onChangeW, onChangeH, ic
 
   const fieldW = document.createElement('div');
   fieldW.className = 'studio-custom-dim-field';
-  const dimIdW = 'dimW_' + Math.random().toString(36).substr(2,6);
+  const dimIdW = 'dimW_' + Math.random().toString(36).slice(2,8);
   const lblW = document.createElement('label');
   lblW.className = 'studio-form-label-sm';
   lblW.htmlFor = dimIdW;
@@ -705,7 +890,7 @@ function createDimensionInput(containerId, label, w, h, onChangeW, onChangeH, ic
 
   const fieldH = document.createElement('div');
   fieldH.className = 'studio-custom-dim-field';
-  const dimIdH = 'dimH_' + Math.random().toString(36).substr(2,6);
+  const dimIdH = 'dimH_' + Math.random().toString(36).slice(2,8);
   const lblH = document.createElement('label');
   lblH.className = 'studio-form-label-sm';
   lblH.htmlFor = dimIdH;
@@ -748,7 +933,7 @@ function createToggle(containerId, label, checked, onChange, iconSvg, hintText) 
   const group = document.createElement('div');
   group.className = 'studio-toggle-group';
 
-  const cbId = 'toggle_' + Math.random().toString(36).substr(2,8);
+  const cbId = 'toggle_' + Math.random().toString(36).slice(2,10);
   const lbl = document.createElement('label');
   lbl.className = 'studio-toggle-label';
   lbl.htmlFor = cbId;
@@ -968,8 +1153,8 @@ function renderCoverLayout(skipLeftPanel=false) {
   const bleed = Number(s.bleed);
   const margin = Number(s.margin)||0;
   const autoPos = autoCoverPaperPos(totalBentang, bookDim.w, bookDim.h, bleed, ppBase, s.jilid, margin);
-  // [Bug #6] Auto-update position (dropdown is now labeled as Auto)
-  if (s.paperPosition !== autoPos) { s.paperPosition = autoPos; }
+  // [Bug #6 fixed] Only auto-update when user hasn't manually overridden (paperPositionAuto !== false)
+  if (s.paperPositionAuto !== false) { s.paperPosition = autoPos; }
   const ppDim = getPrintPaperDim(s);
   const displayMode = determineDisplayMode(totalBentang, bookDim.h, ppDim.w, ppDim.h, s.jilid, bleed, margin);
   // [Bug #1, #2] Fixed weight calculation — pass coverIsi for accurate cover GSM
@@ -1003,14 +1188,14 @@ function renderCoverLayout(skipLeftPanel=false) {
     createDropdown('coverLeftPanel', 'Kertas Isi', PAPER_ISI_OPTIONS, s.paperIsi, v=>{coverState.paperIsi=v;}, ICONS.paper);
     createNumberInput('coverLeftPanel', 'Jumlah Lembaran', s.lembaran, v=>{coverState.lembaran=v;}, 1, ICONS.sheets, MAX_LEMBARAN);
     createDropdown('coverLeftPanel', 'Jenis Jilid', JILID_OPTIONS, s.jilid, v=>{coverState.jilid=v;}, ICONS.binding);
-    /* Kertas Cover dropdown removed — default carton260 used */
+    createDropdown('coverLeftPanel', 'Kertas Cover', PAPER_ISI_OPTIONS.filter(p => { const info = PAPER_ISI_MAP[p.value]; return info && (info.type === 'Carton' || info.type === 'Art Paper'); }), s.coverIsi, v=>{coverState.coverIsi=v;}, ICONS.paper);
 
     createSectionTitle('coverLeftPanel', 'Kertas Print');
     createDropdown('coverLeftPanel', 'Kertas Print', PRINT_PAPER_OPTIONS, s.printPaper, v=>{coverState.printPaper=v;}, ICONS.printPaper);
     if (s.printPaper === 'Custom') {
       createDimensionInput('coverLeftPanel', '', s.customPrintW, s.customPrintH, v=>{coverState.customPrintW=v;}, v=>{coverState.customPrintH=v;});
     }
-    createDropdown('coverLeftPanel', 'Posisi Kertas (Auto)', [{value:'Landscape',label:'Landscape'},{value:'Portrait',label:'Portrait'}], s.paperPosition, v=>{coverState.paperPosition=v;}, ICONS.landscape);
+    createDropdown('coverLeftPanel', 'Posisi Kertas', [{value:'Auto',label:'Auto'},{value:'Landscape',label:'Landscape'},{value:'Portrait',label:'Portrait'}], (s.paperPositionAuto!==false?'Auto':s.paperPosition), v=>{ if(v==='Auto'){coverState.paperPositionAuto=true;} else {coverState.paperPositionAuto=false; coverState.paperPosition=v;} }, ICONS.landscape);
     createDropdown('coverLeftPanel', 'Bleed Area', BLEED_OPTIONS, s.bleed, v=>{coverState.bleed=v;}, ICONS.bleed);
     createDropdown('coverLeftPanel', 'Margin Kertas', PAPER_CUT_MARGIN_OPTIONS, s.margin, v=>{coverState.margin=v;}, ICONS.margin);
   }
@@ -1048,7 +1233,7 @@ function renderCoverLayout(skipLeftPanel=false) {
   const showBentangCards = (displayMode === 'full' || displayMode === 'split');
 
   let cardsHtml = '<div class="studio-result-cards">';
-  cardsHtml += `<div class="studio-result-card card-blue studio-result-card-anim" onclick="copyText('${fmtMm(spine)}');">
+  cardsHtml += `<div class="studio-result-card card-blue studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fmtMm(spine)}');">
     <div class="studio-result-card-top"><span class="studio-result-label">Tebal Punggung</span></div>
     <div class="studio-result-value">${fmtMm(spine)}</div>
     <div class="studio-result-sub">${fmtSecondaryUnit(spine)}</div>
@@ -1056,7 +1241,7 @@ function renderCoverLayout(skipLeftPanel=false) {
   </div>`;
   cardsHtml += spiralCardHtml;
   if (s.jilid === 'spiral') {
-    cardsHtml += `<div class="studio-result-card card-rose studio-result-card-anim" onclick="copyText('${fmtMm(bookDim.w)} x ${fmtMm(bookDim.h)}');">
+    cardsHtml += `<div class="studio-result-card card-rose studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fmtMm(bookDim.w)} x ${fmtMm(bookDim.h)}');">
       <div class="studio-result-card-top"><span class="studio-result-label">Ukuran Cover</span></div>
       <div class="studio-result-value" style="font-size:18px">${fmtMm(bookDim.w)} x ${fmtMm(bookDim.h)}</div>
       <div class="studio-result-sub">Tanpa Bleed</div>
@@ -1064,21 +1249,21 @@ function renderCoverLayout(skipLeftPanel=false) {
     </div>`;
   }
   if (showBentangCards) {
-    cardsHtml += `<div class="studio-result-card card-sky studio-result-card-anim" onclick="copyText('${fmtMm(totalBentang)}');">
+    cardsHtml += `<div class="studio-result-card card-sky studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fmtMm(totalBentang)}');">
       <div class="studio-result-card-top"><span class="studio-result-label">Total Bentang</span></div>
       <div class="studio-result-value">${fmtMm(totalBentang)}</div>
       <div class="studio-result-sub">${fmtSecondaryUnit(totalBentang)}</div>
       <div class="studio-result-bar"></div>
     </div>`;
   }
-  cardsHtml += `<div class="studio-result-card card-amber studio-result-card-anim" onclick="copyText('${fw.value}');">
+  cardsHtml += `<div class="studio-result-card card-amber studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fw.value}');">
     <div class="studio-result-card-top"><span class="studio-result-label">Estimasi Berat</span></div>
     <div class="studio-result-value">${fw.value}</div>
     <div class="studio-result-sub">${fw.sub}</div>
     <div class="studio-result-bar"></div>
   </div>`;
   if (showBentangCards) {
-    cardsHtml += `<div class="studio-result-card card-emerald studio-result-card-anim" onclick="copyText('${fmtMm(totalBentang+bleed*2)}');">
+    cardsHtml += `<div class="studio-result-card card-emerald studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fmtMm(totalBentang+bleed*2)}');">
       <div class="studio-result-card-top"><span class="studio-result-label">Bentang + Bleed</span></div>
       <div class="studio-result-value">${fmtMm(totalBentang+bleed*2)}</div>
       <div class="studio-result-sub">${fmtSecondaryUnit(totalBentang+bleed*2)}</div>
@@ -1087,7 +1272,7 @@ function renderCoverLayout(skipLeftPanel=false) {
   }
   // For spiral, show cover dimensions
   if (displayMode === 'spiral') {
-    cardsHtml += `<div class="studio-result-card card-sky studio-result-card-anim" onclick="copyText('${fmtMm(bookDim.w+bleed*2)} x ${fmtMm(bookDim.h+bleed*2)}');">
+    cardsHtml += `<div class="studio-result-card card-sky studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fmtMm(bookDim.w+bleed*2)} x ${fmtMm(bookDim.h+bleed*2)}');">
       <div class="studio-result-card-top"><span class="studio-result-label">Ukuran Cetak</span></div>
       <div class="studio-result-value" style="font-size:18px">${fmtMm(bookDim.w+bleed*2)} x ${fmtMm(bookDim.h+bleed*2)}</div>
       <div class="studio-result-sub">Cover + Bleed</div>
@@ -1122,7 +1307,7 @@ function renderCoverLayout(skipLeftPanel=false) {
   if (Number(bleed)>0) coverExportInfo.push(`Bleed: ${bleed}mm`);
   if (Number(margin)>0) coverExportInfo.push(`Margin: ${margin}mm`);
 
-  right.innerHTML += `<button class="studio-copy-all-btn" data-copy="${coverCopyText.join('&#10;').replace(/"/g,'&quot;')}" onclick="copyText(this.dataset.copy.replace(/&#10;/g,'\\n'))"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Semua Hasil</button><div class="studio-copy-all-spacer"></div>`;
+  right.innerHTML += `<button class="studio-copy-all-btn" data-copy="${coverCopyText.join('&#10;').replace(/"/g,'&quot;')}" onclick="copyText(this.dataset.copy)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Semua Hasil</button><div class="studio-copy-all-spacer"></div>`;
 
   // Preview — always render at auto-fit scale; zoom/pan handled by CSS transform
   const scale = Math.min(540/ppDim.w, 380/ppDim.h, 2);
@@ -1388,7 +1573,7 @@ function renderCoverLayout(skipLeftPanel=false) {
   </div></div>`;
   infoHtml += `<div class="studio-shortcut-bar">
     <span class="studio-shortcut-item">⌨ <b>Ctrl+Shift+R</b> Reset</span>
-    <span class="studio-shortcut-item">⌨ <b>Ctrl+D</b> Dark Mode</span>
+    <span class="studio-shortcut-item">⌨ <b>Ctrl+Shift+D</b> Dark Mode</span>
     <span class="studio-shortcut-item">⌨ <b>Ctrl+E</b> PNG</span>
     <span class="studio-shortcut-item">⌨ <b>Ctrl+Shift+E</b> PDF</span>
   </div>`;
@@ -1416,7 +1601,7 @@ function renderPaperCut(skipLeftPanel=false) {
 
   const autoPos = autoPaperCutPos(pageDim, ppBase, bleed, margin);
   if (s.chacaRel) { s.paperPosition = 'Landscape'; }
-  else if (s.paperPosition !== autoPos) { s.paperPosition = autoPos; }
+  else if (s.paperPositionAuto !== false) { s.paperPosition = autoPos; }
   const ppDim = getPaperCutPrintDim(s);
   const cut = calcCutLayout(pageDim, ppDim, bleed, margin, totalPcs);
 
@@ -1438,8 +1623,8 @@ function renderPaperCut(skipLeftPanel=false) {
     if (s.printPaper === 'Custom') {
       createDimensionInput('paperCutLeftPanel', '', s.customPrintW, s.customPrintH, v=>{paperCutState.customPrintW=v;}, v=>{paperCutState.customPrintH=v;});
     }
-    const paperPosOptions = s.chacaRel ? [{value:'Landscape',label:'Landscape'}] : [{value:'Landscape',label:'Landscape'},{value:'Portrait',label:'Portrait'}];
-    createDropdown('paperCutLeftPanel', s.chacaRel ? 'Posisi Kertas (Landscape Only)' : 'Posisi Kertas (Auto)', paperPosOptions, s.paperPosition, v=>{paperCutState.paperPosition=v;}, ICONS.landscape);
+    const paperPosOptions = s.chacaRel ? [{value:'Landscape',label:'Landscape'}] : [{value:'Auto',label:'Auto'},{value:'Landscape',label:'Landscape'},{value:'Portrait',label:'Portrait'}];
+    createDropdown('paperCutLeftPanel', s.chacaRel ? 'Posisi Kertas (Landscape Only)' : 'Posisi Kertas', paperPosOptions, (s.chacaRel?'Landscape':(s.paperPositionAuto!==false?'Auto':s.paperPosition)), v=>{ if(v==='Auto'){paperCutState.paperPositionAuto=true;} else {paperCutState.paperPositionAuto=false; paperCutState.paperPosition=v;} }, ICONS.landscape);
     // [Bug #12] Use BLEED_OPTIONS constant instead of inline duplicate
     createDropdown('paperCutLeftPanel', 'Bleed Area', BLEED_OPTIONS, s.bleed, v=>{paperCutState.bleed=v;}, ICONS.bleed);
     createDropdown('paperCutLeftPanel', 'Margin Kertas', PAPER_CUT_MARGIN_OPTIONS, s.margin, v=>{paperCutState.margin=v;}, ICONS.margin);
@@ -1461,25 +1646,25 @@ function renderPaperCut(skipLeftPanel=false) {
   if (fitsOnPaper) { paperCutAlertShown = false; }
 
   let cardsHtml = `<div class="studio-result-cards">
-    <div class="studio-result-card card-blue studio-result-card-anim" onclick="copyText('${cut.totalPerPage} pcs');">
+    <div class="studio-result-card card-blue studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${cut.totalPerPage} pcs');">
       <div class="studio-result-card-top"><span class="studio-result-label">Pcs Per Lembar</span></div>
       <div class="studio-result-value">${cut.totalPerPage} pcs</div>
       <div class="studio-result-sub">${cut.cols}×${cut.rows} grid</div>
       <div class="studio-result-bar"></div>
     </div>
-    <div class="studio-result-card card-sky studio-result-card-anim" onclick="copyText('${cut.totalSheets} lbr');">
+    <div class="studio-result-card card-sky studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${cut.totalSheets} lbr');">
       <div class="studio-result-card-top"><span class="studio-result-label">Total Lembar Cetak</span></div>
       <div class="studio-result-value">${cut.totalSheets} lbr</div>
       <div class="studio-result-sub">${totalPcs} pcs ÷ ${cut.totalPerPage}/lbr</div>
       <div class="studio-result-bar"></div>
     </div>
-    <div class="studio-result-card card-rose studio-result-card-anim" onclick="copyText('${totalPcs} pcs');">
+    <div class="studio-result-card card-rose studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${totalPcs} pcs');">
       <div class="studio-result-card-top"><span class="studio-result-label">Total Pcs</span></div>
       <div class="studio-result-value">${totalPcs} pcs</div>
       <div class="studio-result-sub">Jumlah yang dicetak</div>
       <div class="studio-result-bar"></div>
     </div>
-    <div class="studio-result-card ${cut.utilization>=70?'card-emerald':'card-amber'} studio-result-card-anim" onclick="copyText('${cut.utilization.toFixed(1)}%');">
+    <div class="studio-result-card ${cut.utilization>=70?'card-emerald':'card-amber'} studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${cut.utilization.toFixed(1)}%');">
       <div class="studio-result-card-top"><span class="studio-result-label">Efisiensi Kertas</span></div>
       <div class="studio-result-value">${cut.utilization.toFixed(1)}%</div>
       <div class="studio-result-sub">Sisa: ${cut.wasteArea.toFixed(0)}mm²</div>
@@ -1515,7 +1700,7 @@ function renderPaperCut(skipLeftPanel=false) {
   if (Number(bleed)>0) paperCutExportInfo.push(`Bleed: ${bleed}mm`);
   if (Number(margin)>0) paperCutExportInfo.push(`Margin: ${margin}mm`);
 
-  right.innerHTML += `<button class="studio-copy-all-btn" data-copy="${paperCopyText.join('&#10;').replace(/"/g,'&quot;')}" onclick="copyText(this.dataset.copy.replace(/&#10;/g,'\\n'))"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Semua Hasil</button><div class="studio-copy-all-spacer"></div>`;
+  right.innerHTML += `<button class="studio-copy-all-btn" data-copy="${paperCopyText.join('&#10;').replace(/"/g,'&quot;')}" onclick="copyText(this.dataset.copy)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy Semua Hasil</button><div class="studio-copy-all-spacer"></div>`;
 
   // Preview SVG — always render at auto-fit scale; zoom/pan handled by CSS transform
   const ppW = ppDim.w, ppH = ppDim.h;
@@ -1660,7 +1845,7 @@ function renderPaperCut(skipLeftPanel=false) {
   </div></div>`;
   infoHtml += `<div class="studio-shortcut-bar">
     <span class="studio-shortcut-item">⌨ <b>Ctrl+Shift+R</b> Reset</span>
-    <span class="studio-shortcut-item">⌨ <b>Ctrl+D</b> Dark Mode</span>
+    <span class="studio-shortcut-item">⌨ <b>Ctrl+Shift+D</b> Dark Mode</span>
     <span class="studio-shortcut-item">⌨ <b>Ctrl+E</b> PNG</span>
     <span class="studio-shortcut-item">⌨ <b>Ctrl+Shift+E</b> PDF</span>
   </div>`;
@@ -1770,105 +1955,269 @@ function exportPng(elementId, filename, infoLines=[]) {
 }
 
 // ============================================================
-// Render Kalkulator Isi Buku Studio
+// Render Perhitungan ISI Buku Studio
 // ============================================================
 function renderKalkulatorIsi(skipLeftPanel=false) {
   const s = kalkulatorIsiState;
-  const sigSize = Number(s.signatureSize) || 16;
-  const totalPages = s.jumlahHalaman;
-  const pagesPerSignature = sigSize; // sigSize = pages per signature
-  const signaturesNeeded = Math.ceil(totalPages / pagesPerSignature);
-  const effectiveTotalPages = signaturesNeeded * pagesPerSignature;
-  const blankPages = effectiveTotalPages - totalPages;
-  const isiInfo = PAPER_ISI_MAP[s.paperIsi] || {gsm:80,thickness:0.11};
-  const sheetsPerSignature = sigSize / 2; // each sheet = 2 pages
-  const totalSheets = signaturesNeeded * sheetsPerSignature;
-  const totalLembaran = totalSheets;
-  const bookDim = s.bookSize === 'Custom' ? {w:s.customW, h:s.customH} : (function() {
+  const totalPages = Number(s.jumlahHalaman) || 0;
+  const pagesPerSheet = s.duaSisi ? 2 : 1;
+  const totalLembaran = totalPages > 0 ? Math.ceil(totalPages / pagesPerSheet) : 0;
+  // NOTE: effectiveTotalPages & blankPages are computed later (after pagesPerPrintSheet)
+
+  // Book dimension (with position orientation)
+  const bookDim = s.bookSize === 'Custom' ? {w:Number(s.customW)||210, h:Number(s.customH)||297} : (function() {
     const base = BOOK_SIZE_MAP[s.bookSize];
     return base ? (s.position === 'Landscape' ? {w:base.h,h:base.w} : {w:base.w,h:base.h}) : {w:210,h:297};
   })();
-  const isiWeight = (bookDim.w * bookDim.h * isiInfo.gsm * totalLembaran) / 1000000;
 
+  // Print paper layout (imposition)
+  // Bleed & margin follow Cut Studio convention:
+  //   - pageW/pageH include per-page bleed (bookDim + 2*bleed), used for layout & visualization
+  //   - imposition usable area = ppDim - 2*margin (bleed is INSIDE margin, not added on top)
+  const bleed = Number(s.bleed) || 0;
+  const margin = Number(s.margin) || 0;
+  const pageW = bookDim.w + bleed * 2;
+  const pageH = bookDim.h + bleed * 2;
+  const ppBase = s.printPaper === 'Custom' ? {w:Number(s.customPrintW)||480, h:Number(s.customPrintH)||320} : (PRINT_PAPER_MAP[s.printPaper] || {w:480,h:320});
+
+  // Auto-pick paper orientation that yields the most pages per side
+  // (tie-breaker: higher utilization, then Landscape as final fallback)
+  function fitFor(orient) {
+    const w = orient === 'Landscape' ? ppBase.w : ppBase.h;
+    const h = orient === 'Landscape' ? ppBase.h : ppBase.w;
+    const uW = Math.max(0, w - margin * 2);
+    const uH = Math.max(0, h - margin * 2);
+    const c = pageW > 0 ? Math.max(0, Math.floor(uW / pageW)) : 0;
+    const r = pageH > 0 ? Math.max(0, Math.floor(uH / pageH)) : 0;
+    const slots = c * r;
+    const used = c * pageW * r * pageH;
+    const total = w * h;
+    const util = total > 0 ? (used / total) * 100 : 0;
+    return {cols:c, rows:r, slots, util};
+  }
+  const fitL = fitFor('Landscape');
+  const fitP = fitFor('Portrait');
+  const autoPos = (fitP.slots > fitL.slots) ? 'Portrait'
+                : (fitL.slots > fitP.slots) ? 'Landscape'
+                : (fitP.util > fitL.util) ? 'Portrait'
+                : 'Landscape';
+  if (s.paperPositionAuto !== false) { s.paperPosition = autoPos; }
+
+  const ppDim = s.paperPosition === 'Landscape' ? {w:ppBase.w, h:ppBase.h} : {w:ppBase.h, h:ppBase.w};
+  // Usable area for grid = paper minus margin on both sides (bleed sits inside this)
+  const usableW = Math.max(0, ppDim.w - margin * 2);
+  const usableH = Math.max(0, ppDim.h - margin * 2);
+  const cols = pageW > 0 ? Math.max(0, Math.floor(usableW / pageW)) : 0;
+  const rows = pageH > 0 ? Math.max(0, Math.floor(usableH / pageH)) : 0;
+  const pagesPerSide = cols * rows;
+  const pagesPerPrintSheet = pagesPerSide * pagesPerSheet;
+  const printSheetsNeeded = pagesPerPrintSheet > 0 ? Math.ceil(totalPages / pagesPerPrintSheet) : 0;
+  // Effective total = rounded up to fill complete lembar cetak (covers 2-sisi rounding implicitly)
+  const effectiveTotalPages = printSheetsNeeded * pagesPerPrintSheet;
+  const blankPages = Math.max(0, effectiveTotalPages - totalPages);
+  // Blank equivalents in lembar units (alternative ways to fill the blank slots)
+  const blankLembar2Sisi = Math.ceil(blankPages / 2);  // each lembar 2-sisi holds 2 hal
+  const blankLembar1Sisi = blankPages;                 // each lembar 1-sisi holds 1 hal
+  const usedW = cols * pageW, usedH = rows * pageH;
+  const totalArea = ppDim.w * ppDim.h;
+  const usedArea = usedW * usedH;
+  const utilization = totalArea > 0 ? (usedArea / totalArea) * 100 : 0;
+  const wasteArea = Math.max(0, totalArea - usedArea);
+
+  // [NEW] Tebal Punggung & Spiral Number — pakai totalLembaran sebagai jumlah lembar isi
+  // Mengikuti konvensi mode COVER (calcSpineThickness & getSpiralInfo)
+  const isiSpine       = calcSpineThickness(totalLembaran, s.paperIsi);
+  const isiSpineInfo   = PAPER_ISI_MAP[s.paperIsi] || {name:'-'};
+  const isiSpiralInfo  = (s.jilid === 'spiral') ? getSpiralInfo(isiSpine) : {number:null, outOfRange:true};
+
+  // Left panel — rebuild only on structural change
   if (!skipLeftPanel) {
     const left = document.getElementById('kalkulatorIsiLeftPanel');
     left.innerHTML = '';
+
     createSectionTitle('kalkulatorIsiLeftPanel', 'Ukuran Buku');
     createDropdown('kalkulatorIsiLeftPanel', 'Ukuran Buku', BOOK_SIZES, s.bookSize, v=>{kalkulatorIsiState.bookSize=v;}, ICONS.book);
     createDropdown('kalkulatorIsiLeftPanel', 'Posisi', [{value:'Portrait',label:'Portrait'},{value:'Landscape',label:'Landscape'}], s.position, v=>{kalkulatorIsiState.position=v;}, ICONS.portrait);
     if (s.bookSize === 'Custom') {
       createDimensionInput('kalkulatorIsiLeftPanel', '', s.customW, s.customH, v=>{kalkulatorIsiState.customW=v;}, v=>{kalkulatorIsiState.customH=v;});
     }
-    createSectionTitle('kalkulatorIsiLeftPanel', 'Halaman & Tanda');
+
+    createSectionTitle('kalkulatorIsiLeftPanel', 'Halaman');
     createNumberInput('kalkulatorIsiLeftPanel', 'Jumlah Halaman', s.jumlahHalaman, v=>{kalkulatorIsiState.jumlahHalaman=v;}, 1, ICONS.sheets, 99999);
-    createDropdown('kalkulatorIsiLeftPanel', 'Ukuran Tanda (Signature)', SIGNATURE_OPTIONS, s.signatureSize, v=>{kalkulatorIsiState.signatureSize=v;}, ICONS.binding);
+
+    createSectionTitle('kalkulatorIsiLeftPanel', 'Cetak');
+    createToggle('kalkulatorIsiLeftPanel', '2 Sisi (On/Off)', !!s.duaSisi, v=>{kalkulatorIsiState.duaSisi=v;}, ICONS.twoSides, 'ON = 1 lembar untuk 2 halaman, OFF = 1 lembar untuk 1 halaman');
+
+    // [NEW] Kertas Isi & Jilid — dipakai untuk kartu Tebal Punggung & Spiral Number
     createSectionTitle('kalkulatorIsiLeftPanel', 'Kertas Isi');
-    createDropdown('kalkulatorIsiLeftPanel', 'Jenis Kertas', PAPER_ISI_OPTIONS, s.paperIsi, v=>{kalkulatorIsiState.paperIsi=v;}, ICONS.paper);
+    createDropdown('kalkulatorIsiLeftPanel', 'Kertas Isi', PAPER_ISI_OPTIONS, s.paperIsi, v=>{kalkulatorIsiState.paperIsi=v;}, ICONS.paper);
+    createDropdown('kalkulatorIsiLeftPanel', 'Jilid', JILID_OPTIONS, s.jilid, v=>{kalkulatorIsiState.jilid=v;}, ICONS.jilid);
+
+    createSectionTitle('kalkulatorIsiLeftPanel', 'Kertas Print');
+    createDropdown('kalkulatorIsiLeftPanel', 'Kertas Print', PRINT_PAPER_OPTIONS, s.printPaper, v=>{kalkulatorIsiState.printPaper=v;}, ICONS.printPaper);
+    if (s.printPaper === 'Custom') {
+      createDimensionInput('kalkulatorIsiLeftPanel', '', s.customPrintW, s.customPrintH, v=>{kalkulatorIsiState.customPrintW=v;}, v=>{kalkulatorIsiState.customPrintH=v;});
+    }
+    createDropdown('kalkulatorIsiLeftPanel', 'Posisi Kertas', [{value:'Auto',label:'Auto'},{value:'Landscape',label:'Landscape'},{value:'Portrait',label:'Portrait'}], (s.paperPositionAuto!==false?'Auto':s.paperPosition), v=>{ if(v==='Auto'){kalkulatorIsiState.paperPositionAuto=true;} else {kalkulatorIsiState.paperPositionAuto=false; kalkulatorIsiState.paperPosition=v;} }, ICONS.landscape);
+    createDropdown('kalkulatorIsiLeftPanel', 'Bleed Area', BLEED_OPTIONS, s.bleed, v=>{kalkulatorIsiState.bleed=v;}, ICONS.bleed);
+    createDropdown('kalkulatorIsiLeftPanel', 'Margin Kertas', PAPER_CUT_MARGIN_OPTIONS, s.margin, v=>{kalkulatorIsiState.margin=v;}, ICONS.margin);
   }
 
+  // Right panel — result cards
   const right = document.getElementById('kalkulatorIsiRightPanel');
   right.innerHTML = '';
   let cardsHtml = '<div class="studio-result-cards">';
-  cardsHtml += `<div class="studio-result-card card-blue studio-result-card-anim" onclick="copyText('${totalLembaran} lembaran');">
+
+  // 1) Total Lembaran
+  cardsHtml += `<div class="studio-result-card card-blue studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${totalLembaran} lembaran');">
     <div class="studio-result-card-top"><span class="studio-result-label">Total Lembaran</span></div>
     <div class="studio-result-value">${totalLembaran}</div>
-    <div class="studio-result-sub">${totalSheets} lembar cetak</div><div class="studio-result-bar"></div></div>`;
-  cardsHtml += `<div class="studio-result-card card-violet studio-result-card-anim" onclick="copyText('${signaturesNeeded} tanda');">
-    <div class="studio-result-card-top"><span class="studio-result-label">Jumlah Tanda</span></div>
-    <div class="studio-result-value">${signaturesNeeded}</div>
-    <div class="studio-result-sub">${sigSize} hal/tanda</div><div class="studio-result-bar"></div></div>`;
-  cardsHtml += `<div class="studio-result-card card-sky studio-result-card-anim" onclick="copyText('${effectiveTotalPages} hal');">
-    <div class="studio-result-card-top"><span class="studio-result-label">Total Hal. Efektif</span></div>
-    <div class="studio-result-value">${effectiveTotalPages}</div>
-    <div class="studio-result-sub">Termasuk blank page</div><div class="studio-result-bar"></div></div>`;
+    <div class="studio-result-sub">${pagesPerSheet} hal/lembar</div><div class="studio-result-bar"></div></div>`;
+
+  // 2) Total Halaman
+  // [BUG FIX] Saat layout tidak muat (pagesPerPrintSheet = 0), effectiveTotalPages = 0
+  // yang membingungkan user karena menginput mis. 20 halaman tapi kartu tampil 0.
+  // Tampilkan totalPages (input) saat layout tidak muat; tampilkan effectiveTotalPages
+  // (sudah dibulatkan ke lembar cetak) saat layout muat.
+  const totalHalamanDisplay = (pagesPerPrintSheet > 0) ? effectiveTotalPages : totalPages;
+  const totalHalamanSub = (pagesPerPrintSheet > 0)
+    ? (effectiveTotalPages > totalPages ? `${effectiveTotalPages - totalPages} blank` : 'Halaman')
+    : 'Tidak termasik lembar cetak';
+  cardsHtml += `<div class="studio-result-card card-sky studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${totalHalamanDisplay} hal');">
+    <div class="studio-result-card-top"><span class="studio-result-label">Total Halaman</span></div>
+    <div class="studio-result-value">${totalHalamanDisplay}</div>
+    <div class="studio-result-sub">${totalHalamanSub}</div><div class="studio-result-bar"></div></div>`;
+
+  // (opsional) Blank Kosongan — tetap di antara Total Halaman dan Hal/Lembar Cetak
   if (blankPages > 0) {
-    cardsHtml += `<div class="studio-result-card card-amber studio-result-card-anim" onclick="copyText('${blankPages} hal');">
-      <div class="studio-result-card-top"><span class="studio-result-label">Blank Pages</span></div>
+    cardsHtml += `<div class="studio-result-card card-amber studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${blankPages} hal = ${blankLembar2Sisi} lembar 2 sisi atau ${blankLembar1Sisi} lembar 1 sisi');">
+      <div class="studio-result-card-top"><span class="studio-result-label">Blank Kosongan</span></div>
       <div class="studio-result-value">${blankPages}</div>
-      <div class="studio-result-sub">Perlu ditambah agar genap</div><div class="studio-result-bar"></div></div>`;
+      <div class="studio-result-sub">${blankLembar2Sisi} lembar 2 sisi atau ${blankLembar1Sisi} lembar 1 sisi</div><div class="studio-result-bar"></div></div>`;
   }
-  cardsHtml += `<div class="studio-result-card card-emerald studio-result-card-anim" onclick="copyText('${formatWeight(isiWeight).value}');">
-    <div class="studio-result-card-top"><span class="studio-result-label">Estimasi Berat Isi</span></div>
-    <div class="studio-result-value">${formatWeight(isiWeight).value}</div>
-    <div class="studio-result-sub">${isiInfo.gsm}gsm × ${totalLembaran} lbr</div><div class="studio-result-bar"></div></div>`;
+
+  // 3) Hal/Lembar Cetak  &  4) Lembar Cetak
+  if (pagesPerPrintSheet > 0) {
+    cardsHtml += `<div class="studio-result-card card-violet studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${pagesPerPrintSheet} hal');">
+      <div class="studio-result-card-top"><span class="studio-result-label">Hal/Lembar Cetak</span></div>
+      <div class="studio-result-value">${pagesPerPrintSheet}</div>
+      <div class="studio-result-sub">${cols}×${rows}${s.duaSisi?' × 2 sisi':''}</div><div class="studio-result-bar"></div></div>`;
+    cardsHtml += `<div class="studio-result-card card-emerald studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${printSheetsNeeded} lbr');">
+      <div class="studio-result-card-top"><span class="studio-result-label">Lembar Cetak</span></div>
+      <div class="studio-result-value">${printSheetsNeeded}</div>
+      <div class="studio-result-sub">${s.printPaper} per lembar</div><div class="studio-result-bar"></div></div>`;
+  }
+
+  // 5) Tebal Punggung — [NEW] mengikuti mode COVER
+  if (totalLembaran > 0) {
+    cardsHtml += `<div class="studio-result-card card-blue studio-result-card-anim" role="button" tabindex="0" onclick="copyText('${fmtMm(isiSpine)}');">
+      <div class="studio-result-card-top"><span class="studio-result-label">Tebal Punggung</span></div>
+      <div class="studio-result-value">${fmtMm(isiSpine)}</div>
+      <div class="studio-result-sub">${isiSpineInfo.name} · ${fmtSecondaryUnit(isiSpine)}</div><div class="studio-result-bar"></div></div>`;
+  }
+
+  // 6) Spiral Number — [NEW] hanya tampil jika jilid = spiral
+  if (s.jilid === 'spiral') {
+    if (isiSpiralInfo.outOfRange) {
+      cardsHtml += `<div class="studio-result-card card-warning studio-result-card-anim" role="button" tabindex="0" onclick="copyText('Spiral: Di Luar Ukuran');">
+        <div class="studio-result-card-top"><span class="studio-result-label">Spiral Number</span></div>
+        <div class="studio-result-value" style="font-size:14px;">Di Luar Ukuran</div>
+        <div class="studio-result-sub">Tebal punggung ${fmtMm(isiSpine)} melebihi max ${fmtMm(SPIRAL_SIZES[SPIRAL_SIZES.length-1].maxSpine)}</div><div class="studio-result-bar"></div></div>`;
+    } else {
+      const maxSpineForNum = SPIRAL_SIZES.find(x=>x.number===isiSpiralInfo.number)?.maxSpine || 0;
+      cardsHtml += `<div class="studio-result-card card-violet studio-result-card-anim" role="button" tabindex="0" onclick="copyText('Spiral #${isiSpiralInfo.number}');">
+        <div class="studio-result-card-top"><span class="studio-result-label">Spiral Number</span></div>
+        <div class="studio-result-value">#${isiSpiralInfo.number}</div>
+        <div class="studio-result-sub">Max ${fmtMm(maxSpineForNum)}</div><div class="studio-result-bar"></div></div>`;
+    }
+  }
   cardsHtml += '</div>';
   right.innerHTML = cardsHtml;
 
-  // Signature layout visualization
+  // Info cards
   let infoHtml = '<div style="margin-top:16px">';
-  infoHtml += `<div class="studio-info-card studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Layout Tanda (Signature)</span></div><div class="studio-info-card-body">
-    <div class="studio-sig-grid">`;
-  for (let sig = 0; sig < signaturesNeeded; sig++) {
-    const startPage = sig * sigSize + 1;
-    const endPage = Math.min((sig + 1) * sigSize, totalPages);
-    const isLast = sig === signaturesNeeded - 1;
-    const sigBlank = isLast ? blankPages : 0;
-    infoHtml += `<div class="studio-sig-block filled" title="Tanda ${sig+1}: Hal ${startPage}-${endPage}${sigBlank > 0 ? ` (+${sigBlank} blank)` : ''}">Tanda ${sig+1}<br/><span style="font-size:9px;font-weight:500">Hal ${startPage}-${endPage}</span></div>`;
-    if (sigBlank > 0) {
-      infoHtml += `<div class="studio-sig-block blank" title="${sigBlank} blank pages">+${sigBlank} blank</div>`;
-    }
-  }
-  infoHtml += `</div></div></div>`;
 
-  // Detailed table
-  infoHtml += `<div class="studio-info-card studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Detail Per Tanda</span></div><div class="studio-info-card-body">
-    <table class="studio-table"><thead><tr><th>Tanda</th><th>Halaman</th><th>Lembar</th><th>Status</th></tr></thead><tbody>`;
-  for (let sig = 0; sig < signaturesNeeded; sig++) {
-    const startPage = sig * sigSize + 1;
-    const endPage = Math.min((sig + 1) * sigSize, totalPages);
-    const sigBlank = sig === signaturesNeeded - 1 ? blankPages : 0;
-    const sigSheets = sigSize / 2;
-    const status = sigBlank > 0 ? `+${sigBlank} blank` : 'Penuh';
-    infoHtml += `<tr><td>${sig+1}</td><td>${startPage}–${endPage}${sigBlank>0?` (+${sigBlank})`:''}</td><td>${sigSheets}</td><td style="color:${sigBlank>0?'#f59e0b':'#10b981'}">${status}</td></tr>`;
+  // Imposition layout card
+  if (pagesPerPrintSheet > 0) {
+    // [BUG FIX] Label dinamis: tunjukkan mode Auto/Manual sebenarnya
+    const posisiModeLabel = s.paperPositionAuto !== false ? 'Posisi Kertas (Auto)' : 'Posisi Kertas (Manual)';
+
+    // [BUG FIX] Hitung orientasi terbaik & apakah pilihan user sub-optimal
+    const bestOrient = (fitL.slots > fitP.slots) ? 'Landscape'
+                     : (fitP.slots > fitL.slots) ? 'Portrait'
+                     : (fitL.util >= fitP.util) ? 'Landscape' : 'Portrait';
+    const bestSlots = Math.max(fitL.slots, fitP.slots);
+    const currentSlots = s.paperPosition === 'Landscape' ? fitL.slots : fitP.slots;
+    const isSuboptimal = (s.paperPositionAuto === false) && (bestSlots > currentSlots);
+
+    infoHtml += `<div class="studio-info-card studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Layout Imposisi (per sisi)</span></div><div class="studio-info-card-body">
+      <div class="studio-info-row"><span class="studio-info-row-label">Ukuran Buku + Bleed</span><span class="studio-info-row-value">${fmtMm(pageW)} × ${fmtMm(pageH)} (${fmtMm(bookDim.w)}+${fmtMm(bleed)}×2)</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Kertas Print</span><span class="studio-info-row-value">${s.printPaper} — ${fmtMm(ppDim.w)} × ${fmtMm(ppDim.h)}</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Area Cetak</span><span class="studio-info-row-value">${fmtMm(usableW)} × ${fmtMm(usableH)} (margin ${fmtMm(margin)}×2, bleed di dalam)</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Grid</span><span class="studio-info-row-value">floor(${fmtMm(usableW)} ÷ ${fmtMm(pageW)}) = ${cols} kolom × ${rows} baris = ${pagesPerSide} slot/sisi</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">${posisiModeLabel}</span><span class="studio-info-row-value">${s.paperPosition} — Landscape: ${fitL.cols}×${fitL.rows}=${fitL.slots} slot, Portrait: ${fitP.cols}×${fitP.rows}=${fitP.slots} slot</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Efisiensi Kertas</span><span class="studio-info-row-value">${utilization.toFixed(1)}% (sisa ${fmtNum(wasteArea)} mm²)</span></div>
+    </div></div>`;
+
+    // [NEW] Warning card: orientasi manual sub-optimal
+    // Tampil saat user pilih Portrait/Landscape manual, padahal orientasi lain memberi slot lebih banyak.
+    // Memberi tombol "Gunakan Auto" untuk switch ke orientasi terbaik dalam 1 klik.
+    if (isSuboptimal) {
+      const subIcon = isDark
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+      const subBorder = isDark ? '#92400e' : '#f59e0b';
+      const subAccent = isDark ? '#fcd34d' : '#b45309';
+      const subBtnBg = isDark ? '#92400e' : '#f59e0b';
+      const subBtnText = '#fff';
+      const potentialSheets = Math.ceil(totalPages / (bestSlots * pagesPerSheet));
+      const savedSheets = printSheetsNeeded - potentialSheets;
+      infoHtml += `<div class="studio-info-card studio-info-card-anim" style="border-color:${subBorder};border-left:4px solid ${subBorder}"><div class="studio-info-card-header"><span class="studio-info-card-icon">${subIcon}</span><span class="studio-info-card-title">Orientasi Sub-Optimal</span></div><div class="studio-info-card-body" style="font-size:12px;line-height:1.8">
+        <div style="margin-bottom:8px">Posisi kertas <b style="color:${subAccent}">${s.paperPosition}</b> hanya muat <b>${currentSlots} slot/sisi</b>. Beralih ke <b style="color:${subAccent}">${bestOrient}</b> memuat <b>${bestSlots} slot/sisi</b> (${bestSlots > currentSlots ? `${(bestSlots/currentSlots).toFixed(1)}× lebih banyak` : 'lebih efisien'}).${savedSheets > 0 ? ` Hemat <b style="color:#10b981">${savedSheets} lembar cetak</b> (${printSheetsNeeded} → ${potentialSheets}).` : ''}</div>
+        <button type="button" onclick="kalkulatorIsiState.paperPositionAuto=true; kalkulatorIsiState.paperPosition='${bestOrient}'; renderAll();" style="background:${subBtnBg};color:${subBtnText};border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Gunakan ${bestOrient} (Auto) — ${bestSlots} slot
+        </button>
+      </div></div>`;
+    }
+
+    // Min. Bleed 2mm — info card (match Tips Bleed & Margin style)
+    const minBleedIcon = isDark
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+    const minBleedBorder = isDark ? '#92400e' : '#f59e0b';
+    infoHtml += `<div class="studio-info-card studio-info-card-anim" style="border-color:${minBleedBorder};border-left:4px solid ${minBleedBorder}"><div class="studio-info-card-header"><span class="studio-info-card-icon">${minBleedIcon}</span><span class="studio-info-card-title">Min. Bleed 2mm</span></div><div class="studio-info-card-body" style="font-size:12px;line-height:1.8">
+      <div style="margin-bottom:8px"><b style="color:${isDark?'#fcd34d':'#b45309'}">Wajib minimal bleed 2mm</b> untuk semua ukuran — mencegah <i>white edge</i> akibat pergeseran saat potong.${bleed>0&&bleed<2?` <span style="color:#ef4444;font-weight:600">Bleed saat ini ${bleed}mm — kurang dari 2mm!</span>`:''}${bleed===0?` <span style="color:#ef4444;font-weight:600">Bleed saat ini 0mm — wajib set min. 2mm.</span>`:''}</div>
+      <div><b style="color:${isDark?'#6ee7b7':'#047857'}">Rekomendasi Margin 5–10mm</b> agar mesin cutter punya ruang aman dan kertas tidak terpotong miring.</div>
+    </div></div>`;
+
+    // Detail per lembar cetak
+    infoHtml += `<div class="studio-info-card studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Detail Per Lembar Cetak</span></div><div class="studio-info-card-body">
+      <table class="studio-table"><thead><tr><th>Lembar</th><th>Halaman</th><th>Sisi</th><th>Status</th></tr></thead><tbody>`;
+    for (let sh = 0; sh < printSheetsNeeded; sh++) {
+      const startPage = sh * pagesPerPrintSheet + 1;
+      const endPage = Math.min((sh + 1) * pagesPerPrintSheet, totalPages);
+      const isLast = sh === printSheetsNeeded - 1;
+      const shBlank = isLast ? blankPages : 0;
+      const status = shBlank > 0 ? `+${shBlank} blank` : 'Penuh';
+      infoHtml += `<tr><td>${sh+1}</td><td>${startPage}–${endPage}${shBlank>0?` (+${shBlank})`:''}</td><td>${s.duaSisi?'2 sisi':'1 sisi'}</td><td style="color:${shBlank>0?'#f59e0b':'#10b981'}">${status}</td></tr>`;
+    }
+    infoHtml += `</tbody></table></div></div>`;
+  } else {
+    infoHtml += `<div class="studio-info-card studio-info-info studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Layout Tidak Muat</span></div><div class="studio-info-card-body">
+      <div class="studio-info-row"><span class="studio-info-row-label">Ukuran Buku + Bleed</span><span class="studio-info-row-value">${fmtMm(pageW)} × ${fmtMm(pageH)}</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Kertas Print</span><span class="studio-info-row-value">${s.printPaper} — ${fmtMm(ppDim.w)} × ${fmtMm(ppDim.h)}</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Area Cetak</span><span class="studio-info-row-value">${fmtMm(usableW)} × ${fmtMm(usableH)} (margin ${fmtMm(margin)}×2)</span></div>
+      <div class="studio-info-row"><span class="studio-info-row-label">Status</span><span class="studio-info-row-value" style="color:#f59e0b">Halaman buku melebihi area cetak. Pilih kertas lebih besar, kurangi bleed, atau kurangi margin.</span></div>
+    </div></div>`;
   }
-  infoHtml += `</tbody></table></div></div>`;
 
   // Tips
-  infoHtml += `<div class="studio-info-card studio-info-info studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Tips Signature</span></div><div class="studio-info-card-body">
-    <div class="studio-info-row"><span class="studio-info-row-label">Ukuran Tanda</span><span class="studio-info-row-value">${sigSize} halaman = ${sigSize/2} lembar per tanda</span></div>
-    <div class="studio-info-row"><span class="studio-info-row-label">Umum Digunakan</span><span class="studio-info-row-value">16 halaman (8 lembar) — standar offset</span></div>
-    <div class="studio-info-row"><span class="studio-info-row-label">Digital Print</span><span class="studio-info-row-value">4 atau 8 halaman — lebih fleksibel</span></div>
-    ${blankPages > 0 ? `<div class="studio-info-row"><span class="studio-info-row-label">Solusi Blank Page</span><span class="studio-info-row-value" style="color:#f59e0b">Tambahkan ${blankPages} halaman agar genap per tanda</span></div>` : ''}
+  infoHtml += `<div class="studio-info-card studio-info-info studio-info-card-anim"><div class="studio-info-card-header"><span class="studio-info-card-title">Tips Perhitungan</span></div><div class="studio-info-card-body">
+    <div class="studio-info-row"><span class="studio-info-row-label">Mode Cetak</span><span class="studio-info-row-value">${s.duaSisi?'2 Sisi (Duplex) — 1 lembar = 2 halaman':'1 Sisi — 1 lembar = 1 halaman'}</span></div>
+    <div class="studio-info-row"><span class="studio-info-row-label">Total Lembaran</span><span class="studio-info-row-value">${totalPages} hal ÷ ${pagesPerSheet} = ${totalLembaran} lembar</span></div>
+    ${pagesPerPrintSheet > 0 ? `<div class="studio-info-row"><span class="studio-info-row-label">Total Lembar Cetak</span><span class="studio-info-row-value">${totalPages} hal ÷ ${pagesPerPrintSheet}/lbr = ${printSheetsNeeded} lembar ${s.printPaper}</span></div>` : ''}
+    ${blankPages > 0 ? `<div class="studio-info-row"><span class="studio-info-row-label">Solusi Blank Page</span><span class="studio-info-row-value" style="color:#f59e0b">${blankPages} hal kosong = ${blankLembar2Sisi} lembar 2 sisi atau ${blankLembar1Sisi} lembar 1 sisi</span></div>` : ''}
   </div></div>`;
   infoHtml += '</div>';
   right.innerHTML += infoHtml;
@@ -1879,13 +2228,27 @@ function renderKalkulatorIsi(skipLeftPanel=false) {
 // ============================================================
 function renderReferensiKertas() {
   const panel = document.getElementById('referensiKertasPanel');
+  // [Bug fix] Capture search input focus & caret before re-render so we can restore it.
+  // Previously: panel.innerHTML = html destroyed the input, forcing user to click again after every keystroke.
+  const prevSearchInput = panel.querySelector('.studio-search-input');
+  const hadFocus = prevSearchInput && document.activeElement === prevSearchInput;
+  const caretStart = prevSearchInput ? prevSearchInput.selectionStart : null;
+  const caretEnd = prevSearchInput ? prevSearchInput.selectionEnd : null;
   let html = '';
 
   // Search
+  // [BUG FIX] Escape user input sebelum interpolate ke HTML attribute.
+  // Sebelumnya: value="${referensiSearchFilter}" raw — user input `"` atau
+  // `"><img onerror=...>` bisa memutus atribut HTML / menyuntik markup (XSS).
+  // Meskipun self-XSS, state persist di localStorage → bisa menyebar via share.
+  function escapeHtmlAttr(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
+  }
+  const escapedSearch = escapeHtmlAttr(referensiSearchFilter);
   html += `<div class="studio-full-panel"><div class="studio-full-panel-title">Ukuran Kertas Standar</div>
     <div class="studio-search-wrapper">
       <span class="studio-search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-      <input type="text" class="studio-search-input" placeholder="Cari ukuran kertas..." value="${referensiSearchFilter}" oninput="referensiSearchFilter=this.value;renderReferensiKertas()"/>
+      <input type="text" class="studio-search-input" placeholder="Cari ukuran kertas..." value="${escapedSearch}" oninput="referensiSearchFilter=this.value;renderReferensiKertas()"/>
     </div>`;
 
   // Filter tabs
@@ -1923,50 +2286,216 @@ function renderReferensiKertas() {
   });
   html += `</tbody></table></div></div>`;
 
-  // Comparison overlay
-  html += `<div class="studio-full-panel"><div class="studio-full-panel-title">Perbandingan Ukuran</div>
-    <div style="display:flex;gap:10px;margin-bottom:16px">
-      <select class="studio-number-input" style="flex:1" onchange="referensiCompareA=this.value;renderReferensiKertas()">`;
-  PAPER_REF_SIZES.forEach(p => {
-    html += `<option value="${p.name}"${p.name===referensiCompareA?' selected':''}>${p.name}</option>`;
-  });
-  html += `</select><span style="align-self:center;font-weight:800;color:var(--studio-text-secondary)">vs</span>
-    <select class="studio-number-input" style="flex:1" onchange="referensiCompareB=this.value;renderReferensiKertas()">`;
-  PAPER_REF_SIZES.forEach(p => {
-    html += `<option value="${p.name}"${p.name===referensiCompareB?' selected':''}>${p.name}</option>`;
-  });
-  html += `</select></div>`;
-
+  // Comparison overlay — [NEW] 3 kolom horizontal: Buttons | Preview | Keterangan
   const paperA = PAPER_REF_SIZES.find(p => p.name === referensiCompareA) || PAPER_REF_SIZES[4];
   const paperB = PAPER_REF_SIZES.find(p => p.name === referensiCompareB) || PAPER_REF_SIZES[3];
-  const maxW = Math.max(paperA.w, paperB.w);
-  const maxH = Math.max(paperA.h, paperB.h);
-  const scale = Math.min(400/maxW, 250/maxH, 1);
-  const svgWA = paperA.w*scale, svgHA = paperA.h*scale;
-  const svgWB = paperB.w*scale, svgHB = paperB.h*scale;
-  const totalSvgW = maxW*scale + 60, totalSvgH = maxH*scale + 40;
-  const _bg = isDark ? '#1a1f35' : '#f3f4fa';
-  const _pA = isDark ? 'rgba(96,165,250,0.35)' : 'rgba(96,165,250,0.3)';
-  const _pB = isDark ? 'rgba(251,146,60,0.35)' : 'rgba(251,146,60,0.3)';
-  const _sA = isDark ? '#60a5fa' : '#3b82f6';
-  const _sB = isDark ? '#fb923c' : '#ea580c';
-  const _label = isDark ? '#94a3b8' : '#475569';
+  const areaA = paperA.w * paperA.h;
+  const areaB = paperB.w * paperB.h;
+  const selisihArea = Math.abs(areaA - areaB) / 100;
+  const paperLebihBesar = areaA > areaB ? paperA.name : (areaB > areaA ? paperB.name : null);
+  const rasioStr = (areaA > 0 && areaB > 0)
+    ? (areaA > areaB
+        ? `${paperA.name} ${fmtNum(areaA/areaB)}× ${paperB.name}`
+        : `${paperB.name} ${fmtNum(areaB/areaA)}× ${paperA.name}`)
+    : '';
 
-  html += `<div style="display:flex;justify-content:center"><svg width="${totalSvgW}" height="${totalSvgH}" viewBox="0 0 ${totalSvgW} ${totalSvgH}" style="font-family:'Poppins',sans-serif">
-    <rect width="${totalSvgW}" height="${totalSvgH}" fill="${_bg}" rx="8"/>
-    <rect x="${(totalSvgW-svgWA)/2}" y="${(totalSvgH-svgHA)/2}" width="${svgWA}" height="${svgHA}" fill="${_pA}" stroke="${_sA}" stroke-width="2" rx="4"/>
-    <rect x="${(totalSvgW-svgWB)/2}" y="${(totalSvgH-svgHB)/2}" width="${svgWB}" height="${svgHB}" fill="${_pB}" stroke="${_sB}" stroke-width="2" rx="4"/>
-    <text x="${totalSvgW/2}" y="${totalSvgH-6}" text-anchor="middle" font-size="11" fill="${_label}" font-weight="600">${paperA.name} (${paperA.w}×${paperA.h}mm) vs ${paperB.name} (${paperB.w}×${paperB.h}mm)</text>
-  </svg></div>`;
+  // ============================================================
+  // PERBANDINGAN UKURAN — Premium Balanced Redesign
+  // ============================================================
+  // Layout: 3-kolom seimbang via CSS Grid (1fr 1.25fr 1fr)
+  // Visual: card-based, subtle gradients, layered shadows, consistent rhythm
+  // SVG: nested rectangles (larger behind, smaller in front), proper aspect ratio
+  // ============================================================
 
-  // Comparison details
-  html += `<div style="margin-top:12px">
-    <div class="studio-info-row"><span class="studio-info-row-label">${paperA.name}</span><span class="studio-info-row-value">${paperA.w}×${paperA.h}mm = ${fmtNum(paperA.w*paperA.h/100)}cm²</span></div>
-    <div class="studio-info-row"><span class="studio-info-row-label">${paperB.name}</span><span class="studio-info-row-value">${paperB.w}×${paperB.h}mm = ${fmtNum(paperB.w*paperB.h/100)}cm²</span></div>
-    <div class="studio-info-row"><span class="studio-info-row-label">Selisih Area</span><span class="studio-info-row-value">${fmtNum(Math.abs(paperA.w*paperA.h - paperB.w*paperB.h)/100)}cm² (${paperA.w*paperA.h > paperB.w*paperB.h ? paperA.name + ' lebih besar' : paperB.name + ' lebih besar'})</span></div>
-  </div></div>`;
+  // --- Color tokens (premium palette) ---
+  const _cmp = {
+    bg:         isDark ? '#0f1428' : '#fafbfd',
+    cardBg:     isDark ? '#161b30' : '#ffffff',
+    cardBorder: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)',
+    trackBg:    isDark ? 'rgba(255,255,255,0.03)' : 'rgba(15,23,42,0.025)',
+    textSec:    isDark ? '#94a3b8' : '#64748b',
+    A: {
+      solid:    isDark ? '#60a5fa' : '#3b82f6',
+      soft:     isDark ? 'rgba(96,165,250,0.12)' : 'rgba(59,130,246,0.08)',
+      softer:   isDark ? 'rgba(96,165,250,0.06)' : 'rgba(59,130,246,0.04)',
+      fill:     isDark ? 'rgba(96,165,250,0.28)' : 'rgba(59,130,246,0.22)',
+      gradient: isDark ? 'linear-gradient(135deg, rgba(96,165,250,0.18), rgba(96,165,250,0.04))'
+                       : 'linear-gradient(135deg, rgba(59,130,246,0.10), rgba(59,130,246,0.02))'
+    },
+    B: {
+      solid:    isDark ? '#fb923c' : '#ea580c',
+      soft:     isDark ? 'rgba(251,146,60,0.12)' : 'rgba(234,88,12,0.08)',
+      softer:   isDark ? 'rgba(251,146,60,0.06)' : 'rgba(234,88,12,0.04)',
+      fill:     isDark ? 'rgba(251,146,60,0.28)' : 'rgba(234,88,12,0.22)',
+      gradient: isDark ? 'linear-gradient(135deg, rgba(251,146,60,0.18), rgba(251,146,60,0.04))'
+                       : 'linear-gradient(135deg, rgba(234,88,12,0.10), rgba(234,88,12,0.02))'
+    },
+    G: {
+      solid:    isDark ? '#34d399' : '#10b981',
+      soft:     isDark ? 'rgba(52,211,153,0.12)' : 'rgba(16,185,129,0.08)',
+      gradient: isDark ? 'linear-gradient(135deg, rgba(52,211,153,0.15), rgba(52,211,153,0.04))'
+                       : 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.02))'
+    }
+  };
+
+  html += `<div class="studio-full-panel studio-cmp-panel" style="background:${_cmp.bg};border:1px solid ${_cmp.cardBorder};border-radius:20px;padding:24px;box-shadow:${isDark?'none':'0 1px 3px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.04)'}">`;
+
+  // Header dengan title + subtitle
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:18px;font-weight:800;color:var(--studio-text);letter-spacing:-0.2px">Perbandingan Ukuran</div>
+      <div style="font-size:12px;color:${_cmp.textSec};margin-top:2px">Pilih dua ukuran kertas untuk membandingkan luas area</div>
+    </div>
+    ${rasioStr ? `<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:${_cmp.G.soft};border:1px solid ${_cmp.G.soft};border-radius:999px;font-size:12px;font-weight:700;color:${_cmp.G.solid}">⚡ ${rasioStr}</div>` : ''}
+  </div>`;
+
+  // === GRID 3-KOLOM SEIMBANG ===
+  html += `<div class="studio-cmp-grid" style="display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:20px;align-items:stretch">`;
+
+  // ---------------- KOLOM 1: SELECTOR ----------------
+  // Dua button premium dengan VS di tengah
+  html += `<div style="display:flex;flex-direction:column;gap:12px;justify-content:center;align-items:stretch">`;
+  // Button A
+  html += `<button type="button" id="refCompareBtnA" aria-haspopup="listbox" aria-expanded="false"
+    onclick="event.stopPropagation(); openDropdownMenuAt(this, __PAPER_REF_OPTIONS__, referensiCompareA, v=>{referensiCompareA=v;}, 'Pilih kertas A')"
+    style="background:${_cmp.cardBg};background-image:${_cmp.A.gradient};border:1.5px solid ${_cmp.A.solid};color:var(--studio-text);padding:18px 20px;border-radius:14px;cursor:pointer;display:flex;align-items:center;gap:14px;transition:all 0.2s ease;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,0.04);width:100%;text-align:left">
+    <div style="flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${_cmp.A.soft};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:${_cmp.A.solid};letter-spacing:-0.5px">${paperA.name}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;font-weight:600;color:${_cmp.A.solid};text-transform:uppercase;letter-spacing:0.6px">Kertas A</div>
+      <div style="font-size:18px;font-weight:800;color:var(--studio-text);line-height:1.2;margin-top:2px">${paperA.name}</div>
+      <div style="font-size:11px;color:${_cmp.textSec};margin-top:2px">${paperA.w}×${paperA.h}mm</div>
+    </div>
+    <div style="flex:0 0 auto;color:${_cmp.A.solid};opacity:0.6;font-size:10px">▼</div>
+  </button>`;
+  // VS divider
+  html += `<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:2px 0">
+    <div style="flex:1;height:1px;background:${_cmp.cardBorder}"></div>
+    <div style="font-size:11px;font-weight:800;color:${_cmp.textSec};letter-spacing:2px;padding:4px 14px;background:${_cmp.trackBg};border:1px solid ${_cmp.cardBorder};border-radius:999px">VS</div>
+    <div style="flex:1;height:1px;background:${_cmp.cardBorder}"></div>
+  </div>`;
+  // Button B
+  html += `<button type="button" id="refCompareBtnB" aria-haspopup="listbox" aria-expanded="false"
+    onclick="event.stopPropagation(); openDropdownMenuAt(this, __PAPER_REF_OPTIONS__, referensiCompareB, v=>{referensiCompareB=v;}, 'Pilih kertas B')"
+    style="background:${_cmp.cardBg};background-image:${_cmp.B.gradient};border:1.5px solid ${_cmp.B.solid};color:var(--studio-text);padding:18px 20px;border-radius:14px;cursor:pointer;display:flex;align-items:center;gap:14px;transition:all 0.2s ease;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,0.04);width:100%;text-align:left">
+    <div style="flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${_cmp.B.soft};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:${_cmp.B.solid};letter-spacing:-0.5px">${paperB.name}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;font-weight:600;color:${_cmp.B.solid};text-transform:uppercase;letter-spacing:0.6px">Kertas B</div>
+      <div style="font-size:18px;font-weight:800;color:var(--studio-text);line-height:1.2;margin-top:2px">${paperB.name}</div>
+      <div style="font-size:11px;color:${_cmp.textSec};margin-top:2px">${paperB.w}×${paperB.h}mm</div>
+    </div>
+    <div style="flex:0 0 auto;color:${_cmp.B.solid};opacity:0.6;font-size:10px">▼</div>
+  </button>`;
+  html += `</div>`;
+
+  // ---------------- KOLOM 2: PREVIEW SVG ----------------
+  // Premium canvas: nested rectangles dengan grid background
+  // Logic: kertas yang LEBIH BESAR digambar duluan (di belakang), lebih kecil di depan
+  const bigPaper   = areaA >= areaB ? paperA : paperB;
+  const smallPaper = areaA >= areaB ? paperB : paperA;
+  const bigColor   = areaA >= areaB ? _cmp.A : _cmp.B;
+  const smallColor = areaA >= areaB ? _cmp.B : _cmp.A;
+
+  const canvasW = 420, canvasH = 320, pad = 36;
+  const maxDim  = Math.max(bigPaper.w, bigPaper.h);
+  const scale   = Math.min((canvasW - pad*2) / bigPaper.w, (canvasH - pad*2) / bigPaper.h);
+  const bigW    = bigPaper.w * scale;
+  const bigH    = bigPaper.h * scale;
+  const smW     = smallPaper.w * scale;
+  const smH     = smallPaper.h * scale;
+  const bigX    = (canvasW - bigW) / 2;
+  const bigY    = (canvasH - bigH) / 2;
+  const smX     = (canvasW - smW) / 2;
+  const smY     = (canvasH - smH) / 2;
+
+  html += `<div style="background:${_cmp.cardBg};border:1px solid ${_cmp.cardBorder};border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:stretch;box-shadow:0 1px 2px rgba(0,0,0,0.04)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
+      <span style="font-size:11px;font-weight:700;color:${_cmp.textSec};text-transform:uppercase;letter-spacing:0.6px">Preview</span>
+      <div style="display:flex;gap:10px;font-size:10px;color:${_cmp.textSec}">
+        <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:${_cmp.A.solid}"></span>${paperA.name}</span>
+        <span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:${_cmp.B.solid}"></span>${paperB.name}</span>
+      </div>
+    </div>
+    <svg width="100%" viewBox="0 0 ${canvasW} ${canvasH}" style="font-family:'Poppins',sans-serif;height:auto;display:block;border-radius:8px;background:${_cmp.trackBg}">
+      <!-- Grid background (subtle dotted) -->
+      <defs>
+        <pattern id="cmpGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="0.7" fill="${isDark?'rgba(255,255,255,0.05)':'rgba(15,23,42,0.05)'}"/>
+        </pattern>
+      </defs>
+      <rect width="${canvasW}" height="${canvasH}" fill="url(#cmpGrid)"/>
+      <!-- Larger rectangle (behind) -->
+      <rect x="${bigX}" y="${bigY}" width="${bigW}" height="${bigH}" fill="${bigColor.fill}" stroke="${bigColor.solid}" stroke-width="2" rx="4"/>
+      <!-- Smaller rectangle (in front, overlapping centered) -->
+      <rect x="${smX}" y="${smY}" width="${smW}" height="${smH}" fill="${smallColor.fill}" stroke="${smallColor.solid}" stroke-width="2" rx="4"/>
+      <!-- Labels: positioned at top-right of each rect, with connector dot -->
+      <g>
+        <circle cx="${bigX + bigW - 10}" cy="${bigY + 12}" r="3" fill="${bigColor.solid}"/>
+        <text x="${bigX + bigW - 16}" y="${bigY + 16}" text-anchor="end" font-size="13" fill="${bigColor.solid}" font-weight="800">${bigPaper.name}</text>
+      </g>
+      <g>
+        <circle cx="${smX + smW - 10}" cy="${smY + 12}" r="3" fill="${smallColor.solid}"/>
+        <text x="${smX + smW - 16}" y="${smY + 16}" text-anchor="end" font-size="13" fill="${smallColor.solid}" font-weight="800">${smallPaper.name}</text>
+      </g>
+      <!-- Dimension labels: subtle text at bottom of each rect -->
+      <text x="${bigX + bigW/2}" y="${bigY + bigH + 14}" text-anchor="middle" font-size="9" fill="${_cmp.textSec}" font-weight="500">${bigPaper.w}×${bigPaper.h}mm</text>
+      <text x="${smX + smW/2}" y="${smY + smH - 6}" text-anchor="middle" font-size="9" fill="${smallColor.solid}" font-weight="600" opacity="0.8">${smallPaper.w}×${smallPaper.h}mm</text>
+    </svg>
+  </div>`;
+
+  // ---------------- KOLOM 3: STATS / KETERANGAN ----------------
+  html += `<div style="display:flex;flex-direction:column;gap:10px;justify-content:center">`;
+  // Card A
+  html += `<div style="background:${_cmp.cardBg};background-image:${_cmp.A.gradient};border:1px solid ${_cmp.A.soft};border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px rgba(0,0,0,0.03)">
+    <div style="flex:0 0 auto;width:36px;height:36px;border-radius:8px;background:${_cmp.A.soft};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${_cmp.A.solid}">${paperA.name}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:10px;font-weight:600;color:${_cmp.A.solid};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Kertas A</div>
+      <div style="font-size:13px;color:var(--studio-text);font-weight:600;line-height:1.3">${paperA.w}×${paperA.h}mm</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:18px;font-weight:800;color:${_cmp.A.solid};line-height:1">${fmtNum(areaA/100)}</div>
+      <div style="font-size:10px;color:${_cmp.textSec};font-weight:600;margin-top:2px">cm²</div>
+    </div>
+  </div>`;
+  // Card B
+  html += `<div style="background:${_cmp.cardBg};background-image:${_cmp.B.gradient};border:1px solid ${_cmp.B.soft};border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 2px rgba(0,0,0,0.03)">
+    <div style="flex:0 0 auto;width:36px;height:36px;border-radius:8px;background:${_cmp.B.soft};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${_cmp.B.solid}">${paperB.name}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:10px;font-weight:600;color:${_cmp.B.solid};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px">Kertas B</div>
+      <div style="font-size:13px;color:var(--studio-text);font-weight:600;line-height:1.3">${paperB.w}×${paperB.h}mm</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:18px;font-weight:800;color:${_cmp.B.solid};line-height:1">${fmtNum(areaB/100)}</div>
+      <div style="font-size:10px;color:${_cmp.textSec};font-weight:600;margin-top:2px">cm²</div>
+    </div>
+  </div>`;
+  // Selisih Card (highlighted)
+  html += `<div style="background:${_cmp.cardBg};background-image:${_cmp.G.gradient};border:1.5px solid ${_cmp.G.soft};border-radius:12px;padding:16px;box-shadow:0 2px 8px ${_cmp.G.soft};margin-top:2px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:10px;font-weight:700;color:${_cmp.G.solid};text-transform:uppercase;letter-spacing:0.6px">Selisih Area</span>
+      ${paperLebihBesar ? `<span style="font-size:10px;font-weight:700;color:${_cmp.G.solid};padding:2px 8px;background:${_cmp.G.soft};border-radius:999px">${paperLebihBesar} lebih besar</span>` : ''}
+    </div>
+    <div style="display:flex;align-items:baseline;gap:4px">
+      <span style="font-size:28px;font-weight:800;color:${_cmp.G.solid};line-height:1">${fmtNum(selisihArea)}</span>
+      <span style="font-size:13px;font-weight:700;color:${_cmp.G.solid};opacity:0.8">cm²</span>
+    </div>
+    ${rasioStr ? `<div style="font-size:11px;color:${_cmp.textSec};margin-top:6px;font-weight:500">${rasioStr}</div>` : ''}
+  </div>`;
+  html += `</div>`; // end kolom 3
+
+  html += `</div>`; // end grid
+  html += `</div>`; // end panel
 
   panel.innerHTML = html;
+  // [Bug fix] Restore focus & caret to search input so user can keep typing
+  if (hadFocus) {
+    const newSearchInput = panel.querySelector('.studio-search-input');
+    if (newSearchInput) {
+      newSearchInput.focus();
+      if (caretStart !== null && caretEnd !== null) {
+        try { newSearchInput.setSelectionRange(caretStart, caretEnd); } catch(e) {}
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -1984,6 +2513,12 @@ function renderAll(skipLeftPanel=false) {
 // Export PDF — Feature 5
 // ============================================================
 function exportPdf(elementId, filename, infoLines=[]) {
+  // [Fix] Guard against jsPDF not loaded (CDN failure / ad blocker)
+  if (!window.jspdf) {
+    showToast('Library jsPDF belum dimuat — cek koneksi internet', 'warning');
+    return;
+  }
+  try {
   renderSvgToCanvas(elementId, infoLines, function(canvas, { origW, origH, infoH, svgUrl }) {
     const imgData = canvas.toDataURL('image/png', 1.0);
     const { jsPDF } = window.jspdf;
@@ -2012,6 +2547,10 @@ function exportPdf(elementId, filename, infoLines=[]) {
     URL.revokeObjectURL(svgUrl);
     showToast('PDF Ultra HD exported (Full A4)!');
   });
+  } catch(e) {
+    showToast('Gagal export PDF: ' + (e.message || 'Unknown error'), 'warning');
+    console.error('BlueBee Studio: exportPdf error', e);
+  }
 }
 
 // ============================================================
@@ -2021,17 +2560,22 @@ function resetAll() {
   Object.assign(coverState, {
     bookSize:'A4', position:'Portrait', customW:210, customH:297,
     paperIsi:'hvs75', lembaran:200, jilid:'spiral',
-    printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', bleed:'0', margin:'0',
+    printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', paperPositionAuto:true, bleed:'0', margin:'0',
     coverIsi:'carton260'
   });
   Object.assign(paperCutState, {
     customW:148, customH:210, position:'Portrait', chacaRel:false, jumlahPcs:200,
-    printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape',
+    printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', paperPositionAuto:true,
     bleed:'0', margin:'0'
   });
   Object.assign(kalkulatorIsiState, {
     jumlahHalaman:20, bookSize:'A4', position:'Portrait', customW:210, customH:297,
-    signatureSize:'4', paperIsi:'hvs75'
+    duaSisi:true,
+    printPaper:'A3+', customPrintW:480, customPrintH:320, paperPosition:'Landscape', paperPositionAuto:true,
+    bleed:'0', margin:'0',
+    // [BUG FIX] Reset paperIsi & jilid juga — sebelumnya tidak di-reset,
+    // sehingga pilihan user sebelumnya tetap dipertahankan setelah reset.
+    paperIsi:'hvs75', jilid:'spiral'
   });
   referensiSearchFilter = '';
   coverZoom = 0;
@@ -2047,6 +2591,9 @@ function resetAll() {
   localStorage.removeItem('studio-cover-splitView');
   localStorage.removeItem('studio-active-tab');
   localStorage.removeItem('studio-kalkulator-isi-state');
+  localStorage.removeItem('studio-referensi-filter');
+  localStorage.removeItem('studio-referensi-compare-a');
+  localStorage.removeItem('studio-referensi-compare-b');
   currentUnit = 'mm';
   document.querySelectorAll('.studio-dim-unit-btn').forEach(btn => btn.textContent = 'mm');
   renderAll();
@@ -2066,6 +2613,9 @@ function saveState() {
     localStorage.setItem('studio-active-tab', activeTab);
     localStorage.setItem('studio-unit', currentUnit);
     localStorage.setItem('studio-kalkulator-isi-state', JSON.stringify(kalkulatorIsiState));
+    localStorage.setItem('studio-referensi-filter', referensiSearchFilter);
+    localStorage.setItem('studio-referensi-compare-a', referensiCompareA);
+    localStorage.setItem('studio-referensi-compare-b', referensiCompareB);
     // Clean up old localStorage keys from removed features
     localStorage.removeItem('studio-harga-cetak-state');
     localStorage.removeItem('studio-batch-items');
@@ -2080,7 +2630,16 @@ function saveState() {
 function loadState() {
   try {
     const cs = localStorage.getItem('studio-cover-state');
-    if (cs) Object.assign(coverState, JSON.parse(cs));
+    if (cs) {
+      const parsed = JSON.parse(cs);
+      // [BUG FIX] Validasi coverIsi — dropdown "Kertas Cover" hanya menampilkan
+      // opsi tipe Carton/Art Paper. Jika localStorage lama berisi coverIsi yang
+      // tidak valid (mis. 'hvs75' tipe HVS), reset ke default 'carton260'
+      // supaya trigger menampilkan label yang benar, bukan "Pilih..." kosong.
+      const validCoverIsi = ['carton210','carton230','carton260','carton310','carton400','art120','art150','matte120','matte150'];
+      if (parsed.coverIsi && !validCoverIsi.includes(parsed.coverIsi)) delete parsed.coverIsi;
+      Object.assign(coverState, parsed);
+    }
     const ps = localStorage.getItem('studio-papercut-state');
     if (ps) Object.assign(paperCutState, JSON.parse(ps));
     const cz = localStorage.getItem('studio-cover-zoom');
@@ -2094,7 +2653,25 @@ function loadState() {
     const un = localStorage.getItem('studio-unit');
     if (un && ['mm','cm','inch'].includes(un)) currentUnit = un;
     const kis = localStorage.getItem('studio-kalkulator-isi-state');
-    if (kis) Object.assign(kalkulatorIsiState, JSON.parse(kis));
+    if (kis) {
+      const parsed = JSON.parse(kis);
+      // Migrate away from old signature model (no longer used)
+      delete parsed.signatureSize;
+      // [BUG FIX] Jangan hapus paperIsi — itu field baru yang valid untuk
+      // kartu Tebal Punggung & Spiral Number di mode ISI. Sebelumnya hapus
+      // karena dianggap legacy, sehingga pilihan user hilang setiap refresh.
+      // Tetap validasi: jika value tidak ada di PAPER_ISI_MAP, hapus (fallback ke default).
+      if (parsed.paperIsi && !PAPER_ISI_MAP[parsed.paperIsi]) delete parsed.paperIsi;
+      // Validasi jilid: hanya 'soft' | 'hard' | 'spiral'
+      if (parsed.jilid && !['soft','hard','spiral'].includes(parsed.jilid)) delete parsed.jilid;
+      Object.assign(kalkulatorIsiState, parsed);
+    }
+    const rf = localStorage.getItem('studio-referensi-filter');
+    if (rf !== null) referensiSearchFilter = rf;
+    const rca = localStorage.getItem('studio-referensi-compare-a');
+    if (rca) referensiCompareA = rca;
+    const rcb = localStorage.getItem('studio-referensi-compare-b');
+    if (rcb) referensiCompareB = rcb;
     // Clean up old keys
     localStorage.removeItem('studio-harga-cetak-state');
     localStorage.removeItem('studio-batch-items');
@@ -2125,19 +2702,30 @@ function loadState() {
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey) {
     if ((e.key === 'r' || e.key === 'R') && e.shiftKey) { e.preventDefault(); resetAll(); showToast('Reset berhasil (Ctrl+Shift+R)', 'info'); }
-    if (e.key === 'd' || e.key === 'D') { e.preventDefault(); toggleTheme(); showToast('Dark mode toggled (Ctrl+D)', 'info'); }
+    if ((e.key === 'd' || e.key === 'D') && e.shiftKey) { e.preventDefault(); toggleTheme(); showToast('Dark mode toggled (Ctrl+Shift+D)', 'info'); }
     if (e.key === 'u' || e.key === 'U') { e.preventDefault(); toggleUnit(); }
     if (e.key === 'e' || e.key === 'E') {
+      // [Bug fix] Export only valid in tabs that have a preview SVG (cover-layout, paper-cut)
+      const exportTab = (activeTab === 'cover-layout' || activeTab === 'paper-cut');
+      if (!exportTab) {
+        e.preventDefault();
+        showToast('Export PNG/PDF hanya tersedia di tab Cover Layout & Paper Cut', 'warning');
+        return;
+      }
       if (e.shiftKey) {
         e.preventDefault();
         const _info = activeTab === 'cover-layout' ? coverExportInfo : paperCutExportInfo;
-        if (activeTab === 'cover-layout') exportPdf('coverPreviewBody','cover-layout.pdf',_info); else exportPdf('paperCutPreviewBody','paper-cut-layout.pdf',_info);
-        showToast('Export PDF (Ctrl+Shift+E)', 'info');
+        const _el = activeTab === 'cover-layout' ? 'coverPreviewBody' : 'paperCutPreviewBody';
+        const _fn = activeTab === 'cover-layout' ? 'cover-layout.pdf' : 'paper-cut-layout.pdf';
+        if (document.getElementById(_el)) { exportPdf(_el, _fn, _info); showToast('Export PDF (Ctrl+Shift+E)', 'info'); }
+        else { showToast('Preview belum siap — coba lagi', 'warning'); }
       } else {
         e.preventDefault();
         const _info2 = activeTab === 'cover-layout' ? coverExportInfo : paperCutExportInfo;
-        if (activeTab === 'cover-layout') exportPng('coverPreviewBody','cover-layout.png',_info2); else exportPng('paperCutPreviewBody','paper-cut-layout.png',_info2);
-        showToast('Export PNG (Ctrl+E)', 'info');
+        const _el2 = activeTab === 'cover-layout' ? 'coverPreviewBody' : 'paperCutPreviewBody';
+        const _fn2 = activeTab === 'cover-layout' ? 'cover-layout.png' : 'paper-cut-layout.png';
+        if (document.getElementById(_el2)) { exportPng(_el2, _fn2, _info2); showToast('Export PNG (Ctrl+E)', 'info'); }
+        else { showToast('Preview belum siap — coba lagi', 'warning'); }
       }
     }
   }
@@ -2187,16 +2775,18 @@ function toggleShortcutModal() {
   if (!modal.classList.contains('hidden')) {
     modal.classList.add('hidden');
     modal.innerHTML = '';
+    document.removeEventListener('keydown', window._shortcutEscHandler);
+    document.removeEventListener('keydown', window._shortcutTrapHandler);
     return;
   }
   modal.classList.remove('hidden');
   modal.innerHTML = `
-    <div class="studio-shortcut-modal-overlay" onclick="toggleShortcutModal()">
-      <div class="studio-shortcut-modal" onclick="event.stopPropagation()">
+    <div class="studio-shortcut-modal-overlay" id="shortcutOverlay">
+      <div class="studio-shortcut-modal" onclick="event.stopPropagation()" role="dialog" aria-modal="true" aria-label="Keyboard Shortcuts">
         <div class="studio-shortcut-modal-title">Keyboard Shortcuts</div>
         <div class="studio-shortcut-modal-subtitle">Speed up your workflow</div>
-        <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Dark Mode</span><span class="studio-shortcut-key">Ctrl + D</span></div>
-        <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Reset</span><span class="studio-shortcut-key">Ctrl + R</span></div>
+        <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Dark Mode</span><span class="studio-shortcut-key">Ctrl + Shift + D</span></div>
+        <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Reset</span><span class="studio-shortcut-key">Ctrl + Shift + R</span></div>
         <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Export PNG</span><span class="studio-shortcut-key">Ctrl + E</span></div>
         <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Export PDF</span><span class="studio-shortcut-key">Ctrl + Shift + E</span></div>
         <div class="studio-shortcut-row"><span class="studio-shortcut-desc">Toggle Unit (mm/cm/inch)</span><span class="studio-shortcut-key">Ctrl + U</span></div>
@@ -2206,6 +2796,36 @@ function toggleShortcutModal() {
         <button class="studio-shortcut-modal-close" onclick="toggleShortcutModal()">Close</button>
       </div>
     </div>`;
+  // Close on overlay click
+  document.getElementById('shortcutOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'shortcutOverlay') toggleShortcutModal();
+  });
+  // [A11y] Escape key handler
+  function _escHandler(e) {
+    if (e.key === 'Escape') toggleShortcutModal();
+  }
+  window._shortcutEscHandler = _escHandler;
+  document.addEventListener('keydown', _escHandler);
+  // [A11y] Focus trap
+  function _trapHandler(e) {
+    if (e.key !== 'Tab') return;
+    const dialog = modal.querySelector('.studio-shortcut-modal');
+    if (!dialog) return;
+    const focusable = Array.from(dialog.querySelectorAll('button, [tabindex]:not([tabindex="-1"])'));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
+  window._shortcutTrapHandler = _trapHandler;
+  document.addEventListener('keydown', _trapHandler);
+  // Focus close button by default
+  const closeBtn = modal.querySelector('.studio-shortcut-modal-close');
+  if (closeBtn) closeBtn.focus();
 }
 
 // ============================================================
