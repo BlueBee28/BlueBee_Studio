@@ -99,6 +99,9 @@ python3 -m http.server 8080
 Atau dengan ekstensi **Live Server** di VS Code: klik kanan `index.html` → *Open with Live Server*.
 
 ---
+### Cara 3 — Buka Dengan Link (deploy)
+
+https://bluebee28.github.io/BlueBee_Studio
 
 ## Persyaratan
 
